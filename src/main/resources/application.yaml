@@ -1,0 +1,3 @@
+spring:
+  application:
+    name: Concurrent Crypto Price Simulator
