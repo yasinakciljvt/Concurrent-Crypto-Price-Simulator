@@ -17,9 +17,9 @@ class WorkerEngineTest {
     private WorkerEngine engine;
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws InterruptedException {
         if (engine != null) {
-            engine.executor().shutdownNow();
+            engine.shutdownGracefully();
         }
     }
 
@@ -32,7 +32,6 @@ class WorkerEngineTest {
         LinkedBlockingQueue<PriceWorker.StubTask> queue = new LinkedBlockingQueue<>();
         Set<String> workerNames = ConcurrentHashMap.newKeySet();
 
-        // countDown worker thread'inden çağrılır → isimleri buradan toplarız
         CountDownLatch namedLatch = new CountDownLatch(taskCount) {
             @Override
             public void countDown() {
@@ -55,5 +54,7 @@ class WorkerEngineTest {
         for (int i = 1; i <= workers; i++) {
             assertTrue(workerNames.contains("worker-" + i), "missing worker-" + i);
         }
+        assertTrue(engine.shutdownGracefully());
+        engine = null; // AfterEach tekrar kapatmasın diye
     }
 }
