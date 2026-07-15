@@ -10,7 +10,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 // Sinirli kapasitelidir ve sonuna "poison pill" (dur isareti) konabilir.
 public final class TaskQueue {
 
-    // Kuyrugun varsayilan kapasitesi: en fazla bu kadar gorev ayni anda kuyrukta bekleyebilir.
     public static final int DEFAULT_CAPACITY = 10_000;
 
     // "Dur" isareti olan ozel gorev. Tek bir tane vardir ve gercek bir gorevle karismaz.
@@ -18,10 +17,8 @@ public final class TaskQueue {
     private static final PriceUpdateTask POISON_PILL =
             new PriceUpdateTask(-1L, "__POISON_PILL__", 0L);
 
-    // Icteki gercek kuyruk. Java'nin hazir BlockingQueue'sunu kullaniyoruz.
     private final BlockingQueue<PriceUpdateTask> queue;
 
-    // Kuyrugun kapasitesini ayrica saklariz (bilgi vermek icin).
     private final int capacity;
 
     public TaskQueue() {
@@ -66,7 +63,6 @@ public final class TaskQueue {
         return task == POISON_PILL;
     }
 
-    // Kuyrugu bosaltir. Simulasyonlar arasi temizlik icin (unsafe kosudan safe kosuya gecerken).
     public void clear() {
         queue.clear();
     }
