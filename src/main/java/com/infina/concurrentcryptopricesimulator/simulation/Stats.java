@@ -1,4 +1,4 @@
-package com.infina.concurrentcryptopricesimulator;
+package com.infina.concurrentcryptopricesimulator.simulation;
 
 public class Stats {
     private final long expectedValue;

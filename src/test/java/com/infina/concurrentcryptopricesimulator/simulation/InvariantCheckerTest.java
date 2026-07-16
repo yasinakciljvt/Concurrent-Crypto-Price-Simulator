@@ -1,6 +1,7 @@
-package com.infina.concurrentcryptopricesimulator;
+package com.infina.concurrentcryptopricesimulator.simulation;
 
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class InvariantCheckerTest {

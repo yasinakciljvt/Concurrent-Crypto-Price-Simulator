@@ -1,4 +1,4 @@
-package com.infina.concurrentcryptopricesimulator;
+package com.infina.concurrentcryptopricesimulator.simulation;
 
 import com.infina.concurrentcryptopricesimulator.counter.Counter;
 import java.util.concurrent.ExecutorService;
