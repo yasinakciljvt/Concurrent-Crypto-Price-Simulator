@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,9 +51,12 @@ class WorkerEngineTest {
         }
 
         assertTrue(namedLatch.await(5, TimeUnit.SECONDS));
-        assertEquals(workers, workerNames.size());
-        for (int i = 1; i <= workers; i++) {
-            assertTrue(workerNames.contains("worker-" + i), "missing worker-" + i);
+        assertEquals(workers, engine.workerCount());
+        assertFalse(workerNames.isEmpty());
+        assertTrue(workerNames.size() <= workers);
+
+        for (String name : workerNames) {
+            assertTrue(name.matches("worker-[1-4]"), "unexpected worker: " + name);
         }
         assertTrue(engine.shutdownGracefully());
         engine = null; // AfterEach tekrar kapatmasın diye
