@@ -57,6 +57,21 @@ public final class TaskQueue {
         }
     }
 
+    // Best-effort: kuyruga sigdigi kadar pill koyar, BLOKLAMAZ.
+    // put()'un aksine interrupt bayragina bakmaz -> kesilmis thread'den de cagrilabilir.
+    // Hepsi konabildiyse true, kuyruk dolu oldugu icin konamadiysa false doner.
+    public boolean offerPoisonPills(int workerCount) {
+        if (workerCount < 1) {
+            throw new IllegalArgumentException("workerCount pozitif olmalidir, gelen: " + workerCount);
+        }
+        for (int i = 0; i < workerCount; i++) {
+            if (!queue.offer(POISON_PILL)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // Gelen gorev "dur" isareti mi? Kimlikle karsilastirir (==), degerle degil.
     // Boylece elle uretilmis benzer bir gorev yanlislikla "dur" sanilmaz.
     public static boolean isPoisonPill(PriceUpdateTask task) {

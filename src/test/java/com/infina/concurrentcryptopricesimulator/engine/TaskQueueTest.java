@@ -155,4 +155,42 @@ class TaskQueueTest {
         assertThat(queue.size()).isEqualTo(3);
         assertThat(queue.remainingCapacity()).isZero();
     }
+
+    @Test
+    @DisplayName("offerPoisonPills: yer varsa hepsini koyar ve true doner")
+    void offerPoisonPillsSucceedsWhenSpaceAvailable() throws Exception {
+        TaskQueue queue = new TaskQueue(5);
+
+        assertThat(queue.offerPoisonPills(3)).isTrue();
+        assertThat(queue.size()).isEqualTo(3);
+        for (int i = 0; i < 3; i++) {
+            assertThat(TaskQueue.isPoisonPill(queue.take())).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("offerPoisonPills: kuyruk doluysa bloklamaz, false doner")
+    void offerPoisonPillsFailsWhenQueueFull() throws Exception {
+        TaskQueue queue = new TaskQueue(2);
+        queue.put(task(1));
+        queue.put(task(2));
+
+        assertThat(queue.offerPoisonPills(1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("offerPoisonPills interrupt bayragi set'liyken de calisir (put() calismazdi)")
+    void offerPoisonPillsWorksWithInterruptFlagSet() throws Exception {
+        TaskQueue queue = new TaskQueue(5);
+        Thread.currentThread().interrupt();   // bayragi set et
+
+        try {
+            assertThat(queue.offerPoisonPills(2))
+                    .as("offer() interrupt bayragina bakmaz")
+                    .isTrue();
+            assertThat(queue.size()).isEqualTo(2);
+        } finally {
+            Thread.interrupted();   // bayragi temizle, diger testleri etkilemesin
+        }
+    }
 }
