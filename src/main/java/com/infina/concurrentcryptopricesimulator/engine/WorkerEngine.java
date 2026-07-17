@@ -1,7 +1,6 @@
 package com.infina.concurrentcryptopricesimulator.engine;
 
 import java.time.Duration;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -38,11 +37,12 @@ public final class WorkerEngine {
     }
 
     public void startWorkers(
-            BlockingQueue<PriceWorker.StubTask> queue,
-            CountDownLatch completionLatch
+            TaskQueue queue,
+            CountDownLatch completionLatch,
+            PriceTaskProcessor processor
     ) {
         for (int i = 0; i < workerCount; i++) {
-            executor.submit(new PriceWorker(queue, completionLatch));
+            executor.submit(new PriceWorker(queue, completionLatch, processor));
         }
     }
 
