@@ -9,10 +9,16 @@ public final class PriceWorker implements Runnable {
 
     private final TaskQueue queue;
     private final CountDownLatch completionLatch;
+    private final PriceTaskProcessor processor;
 
-    public PriceWorker(TaskQueue queue, CountDownLatch completionLatch) {
+    public PriceWorker(
+            TaskQueue queue,
+            CountDownLatch completionLatch,
+            PriceTaskProcessor processor
+    ) {
         this.queue = queue;
         this.completionLatch = completionLatch;
+        this.processor = processor;
     }
 
     @Override
@@ -24,7 +30,7 @@ public final class PriceWorker implements Runnable {
                     break;
                 }
                 try {
-                    // TODO: processor.process(task) eklenecek
+                    processor.process(task);
                 } finally {
                     completionLatch.countDown();
                 }

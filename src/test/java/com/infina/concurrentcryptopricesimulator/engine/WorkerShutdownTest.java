@@ -18,7 +18,8 @@ class WorkerShutdownTest {
         TaskQueue queue = new TaskQueue();
         CountDownLatch latch = new CountDownLatch(2);
 
-        engine.startWorkers(queue, latch);
+        engine.startWorkers(queue, latch, task -> {
+        });
 
         queue.put(new PriceUpdateTask(1, "BTC", 10));
         queue.put(new PriceUpdateTask(2, "ETH", -5));
@@ -35,7 +36,8 @@ class WorkerShutdownTest {
         TaskQueue queue = new TaskQueue();
         CountDownLatch latch = new CountDownLatch(0);
 
-        engine.startWorkers(queue, latch);
+        engine.startWorkers(queue, latch, task -> {
+        });
 
         assertTrue(engine.shutdownGracefully());
         assertTrue(engine.executor().isTerminated());
@@ -47,7 +49,8 @@ class WorkerShutdownTest {
         TaskQueue queue = new TaskQueue();
         CountDownLatch latch = new CountDownLatch(0);
 
-        engine.startWorkers(queue, latch);
+        engine.startWorkers(queue, latch, task -> {
+        });
         queue.putPoisonPills(1);
 
         assertTrue(latch.await(2, TimeUnit.SECONDS));

@@ -38,10 +38,11 @@ public final class WorkerEngine {
 
     public void startWorkers(
             TaskQueue queue,
-            CountDownLatch completionLatch
+            CountDownLatch completionLatch,
+            PriceTaskProcessor processor
     ) {
         for (int i = 0; i < workerCount; i++) {
-            executor.submit(new PriceWorker(queue, completionLatch));
+            executor.submit(new PriceWorker(queue, completionLatch, processor));
         }
     }
 

@@ -41,7 +41,8 @@ class WorkerEngineTest {
             }
         };
 
-        engine.startWorkers(queue, namedLatch);
+        engine.startWorkers(queue, namedLatch, task -> {
+        });
 
         for (int i = 1; i <= taskCount; i++) {
             queue.put(new PriceUpdateTask(i, "BTC", 1));
