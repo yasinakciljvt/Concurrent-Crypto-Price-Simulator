@@ -13,7 +13,7 @@ import java.util.Random;
 
 // Bu sinif bir "gorev fabrikasidir": seed verirsin, dondurulmus bir gorev listesi uretir.
 // Kuyruk, worker, coin gibi seylere karismaz; sadece PriceUpdateTask listesi olusturur.
-public final class TaskProducer {
+public final class  TaskProducer {
 
     public static final int MIN_UPDATES = 1;
     public static final int MAX_UPDATES = 100_000;
