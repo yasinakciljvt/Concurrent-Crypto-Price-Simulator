@@ -1,6 +1,7 @@
 package com.infina.concurrentcryptopricesimulator.api;
 
 import com.infina.concurrentcryptopricesimulator.api.dto.ErrorResponseDto;
+import com.infina.concurrentcryptopricesimulator.simulation.SimulationTimeoutException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,11 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(NoSimulationYetException.class)
 	public ResponseEntity<ErrorResponseDto> handleNoSimulationYet(NoSimulationYetException e) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponseDto(e.getMessage()));
+	}
+
+	@ExceptionHandler(SimulationTimeoutException.class)
+	public ResponseEntity<ErrorResponseDto> handleSimulationTimeout(SimulationTimeoutException e) {
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponseDto(e.getMessage()));
 	}
 
 }

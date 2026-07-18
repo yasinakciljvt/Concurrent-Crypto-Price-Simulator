@@ -1,56 +1,73 @@
 package com.infina.concurrentcryptopricesimulator.api;
 
-import com.infina.concurrentcryptopricesimulator.api.dto.CoinComparisonResponseDto;
 import com.infina.concurrentcryptopricesimulator.api.dto.CoinResponseDto;
+import com.infina.concurrentcryptopricesimulator.api.dto.ErrorResponseDto;
 import com.infina.concurrentcryptopricesimulator.api.dto.SimulationStatsResponseDto;
-import com.infina.concurrentcryptopricesimulator.engine.PriceTaskProcessor;
-import com.infina.concurrentcryptopricesimulator.engine.TaskFeeder;
-import com.infina.concurrentcryptopricesimulator.engine.TaskProducer;
-import com.infina.concurrentcryptopricesimulator.engine.TaskQueue;
-import com.infina.concurrentcryptopricesimulator.engine.WorkerEngine;
 import com.infina.concurrentcryptopricesimulator.model.CoinSnapshot;
-import com.infina.concurrentcryptopricesimulator.model.PriceUpdateTask;
-import com.infina.concurrentcryptopricesimulator.repository.DefaultCoinRepositories;
 import com.infina.concurrentcryptopricesimulator.repository.InMemoryCoinRepository;
+import com.infina.concurrentcryptopricesimulator.simulation.SimulationEngine;
+import com.infina.concurrentcryptopricesimulator.simulation.SimulationReport;
 import com.infina.concurrentcryptopricesimulator.state.SafeCoinState;
-import com.infina.concurrentcryptopricesimulator.state.UnsafeCoinState;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 @Validated
 @RestController
+@Tag(
+		name = "Simulation",
+		description = "Eşzamanlı kripto fiyat simülasyonu: çalıştırma, güvenli coin durumu ve karşılaştırmalı istatistikler"
+)
 public class SimulationController {
 
-	private static final Duration WORKER_TIMEOUT = Duration.ofSeconds(30);
+	private static final Logger log = LoggerFactory.getLogger(SimulationController.class);
 
-	private final InMemoryCoinRepository<SafeCoinState> safeCoinRepository;
-	private final TaskProducer taskProducer;
+	private final SimulationEngine simulationEngine;
 	private final AtomicBoolean simulationRunning = new AtomicBoolean(false);
 	private volatile SimulationStatsResponseDto lastStats;
+	private volatile List<CoinResponseDto> lastCoins;
 
-	public SimulationController(InMemoryCoinRepository<SafeCoinState> safeCoinRepository,
-								TaskProducer taskProducer) {
-		this.safeCoinRepository = safeCoinRepository;
-		this.taskProducer = taskProducer;
+	public SimulationController(SimulationEngine simulationEngine,
+								InMemoryCoinRepository<SafeCoinState> safeCoinRepository) {
+		this.simulationEngine = simulationEngine;
+		this.lastCoins = toCoinResponses(safeCoinRepository.findAllSnapshots());
 	}
 
 	@GetMapping("/coins")
+	@Operation(
+			summary = "Coin durumlarini listeler",
+			description = "Son tamamlanan simulasyondaki guvenli (safe) coin durumunu dondurur. "
+					+ "Henuz simulasyon calismadiysa coin'lerin baslangic degerleri doner."
+	)
+	@ApiResponse(responseCode = "200", description = "Guvenli coin durumu")
 	public List<CoinResponseDto> getCoins() {
-		return safeCoinRepository.findAllSnapshots().stream()
-				.map(CoinResponseDto::from)
-				.toList();
+		return lastCoins;
 	}
 
 	@GetMapping("/stats")
+	@Operation(
+			summary = "Simulasyon istatistiklerini dondurur",
+			description = "Son tamamlanan simulasyonun sure, throughput, islenen gorev sayisi ve coin bazli "
+					+ "beklenen/guvensiz/guvenli karsilastirmasini dondurur."
+	)
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Son simulasyonun istatistikleri"),
+			@ApiResponse(responseCode = "404", description = "Henuz hic simulasyon calistirilmadi",
+					content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+	})
 	public SimulationStatsResponseDto getStats() {
 		if (lastStats == null) {
 			throw new NoSimulationYetException();
@@ -59,9 +76,26 @@ public class SimulationController {
 	}
 
 	@PostMapping("/simulate")
+	@Operation(
+			summary = "Simulasyonu calistirir",
+			description = "Coin durumlarini sifirlar, verilen seed ile immutable gorev listesini uretir, "
+					+ "beklenen sonucu tek thread'de hesaplar, ardindan AYNI listeyle once guvensiz sonra "
+					+ "guvenli simulasyonu calistirir. Butun gorevler bitmeden cevap donmez."
+	)
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Simulasyon tamamlandi"),
+			@ApiResponse(responseCode = "400", description = "Gecersiz updates/workers parametresi",
+					content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+			@ApiResponse(responseCode = "409", description = "Halihazirda calisan bir simulasyon var",
+					content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+	})
 	public SimulationStatsResponseDto simulate(
+			@Parameter(description = "Uretilecek gorev sayisi", example = "10000")
 			@RequestParam @Min(1) @Max(100_000) int updates,
+			@Parameter(description = "Worker thread sayisi", example = "4")
 			@RequestParam @Min(1) @Max(16) int workers,
+			@Parameter(description = "Tekrarlanabilir gorev uretimi icin seed. Verilmezse uretilir ve cevapta doner.",
+					example = "42")
 			@RequestParam(required = false) Long seed
 	) {
 		if (!simulationRunning.compareAndSet(false, true)) {
@@ -69,30 +103,13 @@ public class SimulationController {
 		}
 
 		try {
-			long usedSeed = seed != null ? seed : TaskProducer.randomSeed();
-			List<PriceUpdateTask> tasks = taskProducer.generate(updates, usedSeed);
+			SimulationReport report = simulationEngine.runFullSimulation(updates, workers, seed);
+			SimulationStatsResponseDto stats = SimulationStatsResponseDto.from(report);
 
-			InMemoryCoinRepository<UnsafeCoinState> expectedRepo = DefaultCoinRepositories.createUnsafe();
-			for (PriceUpdateTask task : tasks) {
-				expectedRepo.findById(task.coinId()).ifPresent(c -> c.applyDelta(task.delta()));
-			}
-
-			InMemoryCoinRepository<UnsafeCoinState> unsafeRepo = DefaultCoinRepositories.createUnsafe();
-			long unsafeElapsedMs = runWithWorkers(tasks, workers,
-					task -> unsafeRepo.findById(task.coinId()).ifPresent(c -> c.applyDelta(task.delta())));
-
-			safeCoinRepository.resetAll();
-			long safeElapsedMs = runWithWorkers(tasks, workers,
-					task -> safeCoinRepository.findById(task.coinId()).ifPresent(c -> c.applyDelta(task.delta())));
-
-			SimulationStatsResponseDto stats = buildStatsResponse(
-					usedSeed, tasks.size(), workers,
-					expectedRepo.findAllSnapshots(),
-					unsafeRepo.findAllSnapshots(),
-					safeCoinRepository.findAllSnapshots(),
-					unsafeElapsedMs, safeElapsedMs
-			);
+			lastCoins = toCoinResponses(report.safeCoinSnapshots());
 			lastStats = stats;
+
+			logSummary(stats);
 			return stats;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -102,71 +119,21 @@ public class SimulationController {
 		}
 	}
 
-	private long runWithWorkers(List<PriceUpdateTask> tasks, int workers, PriceTaskProcessor processor)
-			throws InterruptedException {
-		TaskQueue queue = new TaskQueue();
-		CountDownLatch latch = new CountDownLatch(tasks.size());
-		WorkerEngine engine = new WorkerEngine(workers);
-
-		long start = System.currentTimeMillis();
-		engine.startWorkers(queue, latch, processor);
-		Thread feederThread = new TaskFeeder(queue, tasks, workers).start();
-
-		boolean completed = engine.awaitCompletion(latch, WORKER_TIMEOUT);
-		feederThread.join();
-		engine.shutdownGracefully();
-
-		if (!completed) {
-			throw new IllegalStateException("Simülasyon zaman aşımına uğradı (workers=" + workers + ")");
-		}
-		return System.currentTimeMillis() - start;
+	private void logSummary(SimulationStatsResponseDto stats) {
+		log.info("Simulation completed: updates={}, workers={}, seed={}, "
+						+ "safeElapsedMs={}, safeThroughput={} task/sec, "
+						+ "unsafeElapsedMs={}, unsafeThroughput={} task/sec, "
+						+ "unsafeProcessed={}, safeProcessed={}, safeInvariantPassed={}",
+				stats.submittedUpdates(), stats.workers(), stats.seed(),
+				stats.safeElapsedMs(), Math.round(stats.safeThroughputPerSec()),
+				stats.unsafeElapsedMs(), Math.round(stats.unsafeThroughputPerSec()),
+				stats.unsafeProcessedUpdates(), stats.safeProcessedUpdates(),
+				stats.safeInvariantPassed());
 	}
 
-	private SimulationStatsResponseDto buildStatsResponse(
-			long seed, int submittedUpdates, int workers,
-			List<CoinSnapshot> expectedSnapshots,
-			List<CoinSnapshot> unsafeSnapshots,
-			List<CoinSnapshot> safeSnapshots,
-			long unsafeElapsedMs, long safeElapsedMs
-	) {
-		Map<String, CoinSnapshot> unsafeById = unsafeSnapshots.stream()
-				.collect(Collectors.toMap(CoinSnapshot::id, s -> s));
-		Map<String, CoinSnapshot> safeById = safeSnapshots.stream()
-				.collect(Collectors.toMap(CoinSnapshot::id, s -> s));
-
-		long unsafeProcessedUpdates = unsafeSnapshots.stream().mapToLong(CoinSnapshot::updateCount).sum();
-		long safeProcessedUpdates = safeSnapshots.stream().mapToLong(CoinSnapshot::updateCount).sum();
-
-		double unsafeThroughput = unsafeElapsedMs == 0 ? 0 : (unsafeProcessedUpdates * 1000.0) / unsafeElapsedMs;
-		double safeThroughput = safeElapsedMs == 0 ? 0 : (safeProcessedUpdates * 1000.0) / safeElapsedMs;
-
-		List<CoinComparisonResponseDto> coinComparisons = expectedSnapshots.stream()
-				.map(expected -> {
-					CoinSnapshot unsafeCoin = unsafeById.get(expected.id());
-					CoinSnapshot safeCoin = safeById.get(expected.id());
-					return new CoinComparisonResponseDto(
-							expected.id(),
-							expected.initialPrice(),
-							expected.currentPrice(),
-							unsafeCoin.currentPrice(),
-							safeCoin.currentPrice(),
-							expected.updateCount(),
-							unsafeCoin.updateCount(),
-							safeCoin.updateCount()
-					);
-				})
+	private static List<CoinResponseDto> toCoinResponses(List<CoinSnapshot> snapshots) {
+		return snapshots.stream()
+				.map(CoinResponseDto::from)
 				.toList();
-
-		boolean invariantPassed = coinComparisons.stream()
-				.allMatch(c -> c.safe() == c.expected() && c.safeUpdateCount() == c.expectedUpdateCount());
-
-		return new SimulationStatsResponseDto(
-				seed, submittedUpdates, workers,
-				unsafeProcessedUpdates, safeProcessedUpdates,
-				unsafeElapsedMs, safeElapsedMs,
-				unsafeThroughput, safeThroughput,
-				invariantPassed,
-				coinComparisons
-		);
 	}
 }
