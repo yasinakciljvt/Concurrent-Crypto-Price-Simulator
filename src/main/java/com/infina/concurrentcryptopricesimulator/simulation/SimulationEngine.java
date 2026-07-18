@@ -1,11 +1,10 @@
 package com.infina.concurrentcryptopricesimulator.simulation;
 
 import com.infina.concurrentcryptopricesimulator.counter.Counter;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import com.infina.concurrentcryptopricesimulator.engine.WorkerEngine;
 
 public class SimulationEngine {
+
     private final int threadCount;
     private final int incrementsPerThread;
 
@@ -15,18 +14,17 @@ public class SimulationEngine {
     }
 
     public long runSimulation(Counter counter) throws InterruptedException {
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        WorkerEngine workerEngine = new WorkerEngine(threadCount);
 
         for (int i = 0; i < threadCount; i++) {
-            executor.submit(() -> {
+            workerEngine.executor().submit(() -> {
                 for (int j = 0; j < incrementsPerThread; j++) {
                     counter.increment();
                 }
             });
         }
 
-        executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.MINUTES);
+        workerEngine.shutdownGracefully();
 
         return counter.getValue();
     }
