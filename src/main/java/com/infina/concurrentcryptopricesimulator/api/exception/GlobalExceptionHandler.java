@@ -1,7 +1,9 @@
-package com.infina.concurrentcryptopricesimulator.api;
+package com.infina.concurrentcryptopricesimulator.api.exception;
 
 import com.infina.concurrentcryptopricesimulator.api.dto.ErrorResponseDto;
-import com.infina.concurrentcryptopricesimulator.simulation.SimulationTimeoutException;
+import com.infina.concurrentcryptopricesimulator.exception.NoSimulationYetException;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationAlreadyRunningException;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationTimeoutException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package com.infina.concurrentcryptopricesimulator.simulation;
+package com.infina.concurrentcryptopricesimulator.exception;
 
 import java.time.Duration;
 
