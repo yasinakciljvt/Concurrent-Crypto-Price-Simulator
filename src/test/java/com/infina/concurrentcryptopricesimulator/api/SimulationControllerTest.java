@@ -38,7 +38,7 @@ class SimulationControllerTest {
 	void statsReturns404WhenNoSimulationHasRunYet() throws Exception {
 		mockMvc.perform(get("/stats"))
 				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.message").value("No simulation has been run yet."));
+				.andExpect(jsonPath("$.message").value("Henüz bir simülasyon çalıştırılmadı."));
 	}
 
 	@Test
