@@ -8,9 +8,9 @@ import java.util.List;
 public final class DefaultCoinRepositories {
 
     private static final List<CoinDefinition> DEFAULT_COINS = List.of(
-            new CoinDefinition("BTC", 60_000),
-            new CoinDefinition("ETH", 3_000),
-            new CoinDefinition("SOL", 150)
+            new CoinDefinition("BTC", 60_000L),
+            new CoinDefinition("ETH", 3_000L),
+            new CoinDefinition("SOL", 150L)
     );
 
     private DefaultCoinRepositories() {

@@ -1,6 +1,6 @@
 package com.infina.concurrentcryptopricesimulator.api.dto;
 
-public record CoinStatsDto (
+public record CoinComparisonResponseDto(
     String id,
     long initial,
     long expected,
