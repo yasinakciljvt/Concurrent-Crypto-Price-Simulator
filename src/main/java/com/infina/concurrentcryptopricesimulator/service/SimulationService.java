@@ -2,8 +2,8 @@ package com.infina.concurrentcryptopricesimulator.service;
 
 import com.infina.concurrentcryptopricesimulator.api.dto.CoinResponseDto;
 import com.infina.concurrentcryptopricesimulator.api.dto.SimulationStatsResponseDto;
-import com.infina.concurrentcryptopricesimulator.api.exception.NoSimulationYetException;
-import com.infina.concurrentcryptopricesimulator.api.exception.SimulationAlreadyRunningException;
+import com.infina.concurrentcryptopricesimulator.exception.NoSimulationYetException;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationAlreadyRunningException;
 import com.infina.concurrentcryptopricesimulator.model.CoinSnapshot;
 import com.infina.concurrentcryptopricesimulator.repository.InMemoryCoinRepository;
 import com.infina.concurrentcryptopricesimulator.simulation.SimulationEngine;

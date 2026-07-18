@@ -8,6 +8,7 @@ import com.infina.concurrentcryptopricesimulator.engine.TaskFeeder;
 import com.infina.concurrentcryptopricesimulator.engine.TaskProducer;
 import com.infina.concurrentcryptopricesimulator.engine.TaskQueue;
 import com.infina.concurrentcryptopricesimulator.engine.WorkerEngine;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationTimeoutException;
 import com.infina.concurrentcryptopricesimulator.model.CoinSnapshot;
 import com.infina.concurrentcryptopricesimulator.model.PriceUpdateTask;
 import com.infina.concurrentcryptopricesimulator.repository.DefaultCoinRepositories;
