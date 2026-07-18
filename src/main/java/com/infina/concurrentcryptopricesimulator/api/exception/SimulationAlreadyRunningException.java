@@ -1,4 +1,4 @@
-package com.infina.concurrentcryptopricesimulator.api;
+package com.infina.concurrentcryptopricesimulator.api.exception;
 
 public class SimulationAlreadyRunningException extends RuntimeException{
 	public SimulationAlreadyRunningException(){

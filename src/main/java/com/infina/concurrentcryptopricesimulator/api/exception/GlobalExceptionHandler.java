@@ -1,4 +1,4 @@
-package com.infina.concurrentcryptopricesimulator.api;
+package com.infina.concurrentcryptopricesimulator.api.exception;
 
 import com.infina.concurrentcryptopricesimulator.api.dto.ErrorResponseDto;
 import com.infina.concurrentcryptopricesimulator.simulation.SimulationTimeoutException;
