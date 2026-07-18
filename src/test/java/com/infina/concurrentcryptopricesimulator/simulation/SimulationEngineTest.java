@@ -14,8 +14,7 @@ class SimulationEngineTest {
         SimulationEngine engine = new SimulationEngine(threadCount, incrementsPerThread);
         SafeCounter counter = new SafeCounter();
 
-        long result = engine.runSimulation(counter);
-
-        assertEquals(threadCount * incrementsPerThread, result);
+        Stats stats = engine.runSimulation(counter);
+        assertEquals((long) threadCount * incrementsPerThread, stats.getActualValue());
     }
 }
