@@ -101,12 +101,12 @@ public class SimulationEngine {
         CountDownLatch completionLatch = new CountDownLatch(tasks.size());
         WorkerEngine workerEngine = new WorkerEngine(workers);
 
-        long start = System.currentTimeMillis();
+        long startTimer = System.currentTimeMillis();
         workerEngine.startWorkers(queue, completionLatch, processor);
         Thread feederThread = new TaskFeeder(queue, tasks, workers).start();
 
         boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
-        long elapsedMs = System.currentTimeMillis() - start;
+        long elapsedMs = System.currentTimeMillis() - startTimer;
 
         if (!completed) {
             feederThread.interrupt();
