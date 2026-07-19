@@ -25,9 +25,9 @@ public record SimulationReport(
     }
 
     private static double throughput(Stats stats) {
-        if (stats.getDurationMs() == 0) {
+        if (stats.getDurationNanos() == 0) {
             return 0;
         }
-        return (stats.getActualValue() * 1000.0) / stats.getDurationMs();
+        return (stats.getActualValue() * 1_000_000_000.0) / stats.getDurationNanos();
     }
 }

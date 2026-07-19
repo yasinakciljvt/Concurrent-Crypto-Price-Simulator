@@ -8,6 +8,7 @@ import com.infina.concurrentcryptopricesimulator.engine.TaskFeeder;
 import com.infina.concurrentcryptopricesimulator.engine.TaskProducer;
 import com.infina.concurrentcryptopricesimulator.engine.TaskQueue;
 import com.infina.concurrentcryptopricesimulator.engine.WorkerEngine;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationTimeoutException;
 import com.infina.concurrentcryptopricesimulator.model.CoinSnapshot;
 import com.infina.concurrentcryptopricesimulator.model.PriceUpdateTask;
 import com.infina.concurrentcryptopricesimulator.repository.DefaultCoinRepositories;
@@ -52,19 +53,19 @@ public class SimulationEngine {
 
         Counter unsafeCounter = new UnsafeCounter();
         InMemoryCoinRepository<UnsafeCoinState> unsafeRepository = DefaultCoinRepositories.createUnsafe();
-        long unsafeElapsedMs = runPass(tasks, workers, task -> {
+        long unsafeElapsedNanos = runPass(tasks, workers, task -> {
             unsafeRepository.findById(task.coinId()).ifPresent(coin -> coin.applyDelta(task.delta()));
             unsafeCounter.increment();
         });
 
         Counter safeCounter = new SafeCounter();
-        long safeElapsedMs = runPass(tasks, workers, task -> {
+        long safeElapsedNanos = runPass(tasks, workers, task -> {
             safeCoinRepository.findById(task.coinId()).ifPresent(coin -> coin.applyDelta(task.delta()));
             safeCounter.increment();
         });
 
-        Stats safeStats = new Stats(expectedProcessedTasks, safeCounter.getValue(), safeElapsedMs);
-        Stats unsafeStats = new Stats(expectedProcessedTasks, unsafeCounter.getValue(), unsafeElapsedMs);
+        Stats safeStats = new Stats(expectedProcessedTasks, safeCounter.getValue(), safeElapsedNanos);
+        Stats unsafeStats = new Stats(expectedProcessedTasks, unsafeCounter.getValue(), unsafeElapsedNanos);
 
         List<CoinSnapshot> safeSnapshots = safeCoinRepository.findAllSnapshots();
         List<CoinComparison> coinComparisons = buildCoinComparisons(
@@ -91,8 +92,8 @@ public class SimulationEngine {
 
     public Stats runSimulation(Counter counter, int workers, List<PriceUpdateTask> tasks) throws InterruptedException {
         long expectedValue = expectedResultCalculator.calculateExpectedProcessedTasks(tasks.size());
-        long durationMs = runPass(tasks, workers, task -> counter.increment());
-        return new Stats(expectedValue, counter.getValue(), durationMs);
+        long durationNanos = runPass(tasks, workers, task -> counter.increment());
+        return new Stats(expectedValue, counter.getValue(), durationNanos);
     }
 
     private long runPass(List<PriceUpdateTask> tasks, int workers, PriceTaskProcessor processor)
@@ -101,21 +102,31 @@ public class SimulationEngine {
         CountDownLatch completionLatch = new CountDownLatch(tasks.size());
         WorkerEngine workerEngine = new WorkerEngine(workers);
 
-        long startTimer = System.currentTimeMillis();
-        workerEngine.startWorkers(queue, completionLatch, processor);
-        Thread feederThread = new TaskFeeder(queue, tasks, workers).start();
+        Thread feederThread = null;
 
-        boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
-        long elapsedMs = System.currentTimeMillis() - startTimer;
+        try {
+            workerEngine.startWorkers(queue, completionLatch, processor);
+            feederThread = new TaskFeeder(queue, tasks, workers).start();
 
-        if (!completed) {
-            feederThread.interrupt();
-        }
-        feederThread.join(FEEDER_JOIN_TIMEOUT.toMillis());
-        workerEngine.shutdownGracefully();
+            // Sureyi yalnizca isleme penceresinde olc: kuyruk/feeder kurulumu haric tutulur.
+            long startNanos = System.nanoTime();
+            boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
+            long elapsedNanos = System.nanoTime() - startNanos;
 
-        if (!completed) {
-            throw new SimulationTimeoutException(workers, WORKER_TIMEOUT);
+            if (!completed) {
+                feederThread.interrupt();
+            }
+            feederThread.join(FEEDER_JOIN_TIMEOUT.toMillis());
+
+            if (!completed) {
+                throw new SimulationTimeoutException(workers, WORKER_TIMEOUT);
+            }
+            return elapsedNanos;
+        } finally {
+            if (feederThread != null && feederThread.isAlive()) {
+                feederThread.interrupt();
+            }
+            workerEngine.shutdownGracefully();
         }
         return elapsedMs;
     }

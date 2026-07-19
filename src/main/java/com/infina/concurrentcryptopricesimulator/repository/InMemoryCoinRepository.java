@@ -16,22 +16,22 @@ public final class InMemoryCoinRepository<T extends CoinState> {
     private final Map<String, T> coinStatesById;
 
     public InMemoryCoinRepository(Collection<T> coinStates) {
-        Objects.requireNonNull(coinStates, "Coin states must not be null");
+        Objects.requireNonNull(coinStates, "Coin durumları null olamaz.");
 
         if (coinStates.isEmpty()) {
-            throw new IllegalArgumentException("Coin repository must not be empty");
+            throw new IllegalArgumentException("Coin repository boş olamaz.");
         }
 
         Map<String, T> statesById = new LinkedHashMap<>();
         for (T coinState : coinStates) {
             T nonNullCoinState = Objects.requireNonNull(
                     coinState,
-                    "Coin state must not be null"
+                    "Coin durumu null olamaz."
             );
             T existingState = statesById.putIfAbsent(nonNullCoinState.id(), nonNullCoinState);
             if (existingState != null) {
                 throw new IllegalArgumentException(
-                        "Duplicate coin id: " + nonNullCoinState.id()
+                        "Tekrarlanan coin kimliği: " + nonNullCoinState.id()
                 );
             }
         }
