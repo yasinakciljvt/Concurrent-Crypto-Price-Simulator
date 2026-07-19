@@ -28,7 +28,7 @@ Java 21, Spring Boot 4.1.0, Maven, Git/GitHub, Swagger/OpenAPI (springdoc-openap
    ```bash
    docker run --rm -p 8080:8080 concurrent-crypto-simulator
    ```
-5. Uygulama başladıktan sonra `http://localhost:8080` adresine tarayıcıdan erişebilirsiniz.
+5. Uygulama başladıktan sonra Swagger arayüzüne erişmek için tarayıcınızda `http://localhost:8080/swagger-ui/index.html` adresini açabilirsiniz.
 
 > Gerekli: [Docker](https://www.docker.com/products/docker-desktop/) sisteminizde kurulu olmalıdır.
 
