@@ -102,13 +102,14 @@ public class SimulationEngine {
         CountDownLatch completionLatch = new CountDownLatch(tasks.size());
         WorkerEngine workerEngine = new WorkerEngine(workers);
 
-        long start = System.currentTimeMillis();
         Thread feederThread = null;
 
         try {
             workerEngine.startWorkers(queue, completionLatch, processor);
             feederThread = new TaskFeeder(queue, tasks, workers).start();
 
+            // Sureyi yalnizca isleme penceresinde olc: kuyruk/feeder kurulumu haric tutulur.
+            long start = System.currentTimeMillis();
             boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
             long elapsedMs = System.currentTimeMillis() - start;
 
