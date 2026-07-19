@@ -56,8 +56,10 @@ public class SimulationService {
 			SimulationReport report = simulationEngine.runFullSimulation(updates, workers, seed);
 			SimulationStatsResponseDto stats = SimulationStatsResponseDto.from(report);
 
-			lastCoins = toCoinResponses(report.safeCoinSnapshots());
-			lastStats = stats;
+			synchronized (this) {
+				lastCoins = toCoinResponses(report.safeCoinSnapshots());
+				lastStats = stats;
+			}
 
 			logSummary(stats);
 			return stats;
