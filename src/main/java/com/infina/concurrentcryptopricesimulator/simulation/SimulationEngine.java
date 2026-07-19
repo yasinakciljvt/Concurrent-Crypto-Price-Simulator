@@ -53,19 +53,19 @@ public class SimulationEngine {
 
         Counter unsafeCounter = new UnsafeCounter();
         InMemoryCoinRepository<UnsafeCoinState> unsafeRepository = DefaultCoinRepositories.createUnsafe();
-        long unsafeElapsedMs = runPass(tasks, workers, task -> {
+        long unsafeElapsedNanos = runPass(tasks, workers, task -> {
             unsafeRepository.findById(task.coinId()).ifPresent(coin -> coin.applyDelta(task.delta()));
             unsafeCounter.increment();
         });
 
         Counter safeCounter = new SafeCounter();
-        long safeElapsedMs = runPass(tasks, workers, task -> {
+        long safeElapsedNanos = runPass(tasks, workers, task -> {
             safeCoinRepository.findById(task.coinId()).ifPresent(coin -> coin.applyDelta(task.delta()));
             safeCounter.increment();
         });
 
-        Stats safeStats = new Stats(expectedProcessedTasks, safeCounter.getValue(), safeElapsedMs);
-        Stats unsafeStats = new Stats(expectedProcessedTasks, unsafeCounter.getValue(), unsafeElapsedMs);
+        Stats safeStats = new Stats(expectedProcessedTasks, safeCounter.getValue(), safeElapsedNanos);
+        Stats unsafeStats = new Stats(expectedProcessedTasks, unsafeCounter.getValue(), unsafeElapsedNanos);
 
         List<CoinSnapshot> safeSnapshots = safeCoinRepository.findAllSnapshots();
         List<CoinComparison> coinComparisons = buildCoinComparisons(
@@ -92,8 +92,8 @@ public class SimulationEngine {
 
     public Stats runSimulation(Counter counter, int workers, List<PriceUpdateTask> tasks) throws InterruptedException {
         long expectedValue = expectedResultCalculator.calculateExpectedProcessedTasks(tasks.size());
-        long durationMs = runPass(tasks, workers, task -> counter.increment());
-        return new Stats(expectedValue, counter.getValue(), durationMs);
+        long durationNanos = runPass(tasks, workers, task -> counter.increment());
+        return new Stats(expectedValue, counter.getValue(), durationNanos);
     }
 
     private long runPass(List<PriceUpdateTask> tasks, int workers, PriceTaskProcessor processor)
@@ -109,9 +109,9 @@ public class SimulationEngine {
             feederThread = new TaskFeeder(queue, tasks, workers).start();
 
             // Sureyi yalnizca isleme penceresinde olc: kuyruk/feeder kurulumu haric tutulur.
-            long start = System.currentTimeMillis();
+            long startNanos = System.nanoTime();
             boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
-            long elapsedMs = System.currentTimeMillis() - start;
+            long elapsedNanos = System.nanoTime() - startNanos;
 
             if (!completed) {
                 feederThread.interrupt();
@@ -121,7 +121,7 @@ public class SimulationEngine {
             if (!completed) {
                 throw new SimulationTimeoutException(workers, WORKER_TIMEOUT);
             }
-            return elapsedMs;
+            return elapsedNanos;
         } finally {
             if (feederThread != null && feederThread.isAlive()) {
                 feederThread.interrupt();
