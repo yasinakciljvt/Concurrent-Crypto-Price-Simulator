@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -22,11 +23,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * /simulate, /coins ve /stats endpoint'lerinin integration testleri.
  *
- * <p>lastStats controller uzerinde tutulan bir durum oldugu icin "henuz simulasyon yok" senaryosu
- * @Order(1) ile once calistirilir; sonraki testler simulasyon calistirdiginda o durum kaybolur.
+ * <p>Simülasyon sonuçları {@code SimulationService} üzerinde tutulduğu için testler arası durum paylaşımı olabilir.
+ * Bu yüzden her testten önce context {@code @DirtiesContext(BEFORE_EACH_TEST_METHOD)} ile temizlenir.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SimulationControllerTest {
 
@@ -38,7 +40,7 @@ class SimulationControllerTest {
 	void statsReturns404WhenNoSimulationHasRunYet() throws Exception {
 		mockMvc.perform(get("/stats"))
 				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.message").value("No simulation has been run yet."));
+				.andExpect(jsonPath("$.message").value("Henüz bir simülasyon çalıştırılmadı."));
 	}
 
 	@Test

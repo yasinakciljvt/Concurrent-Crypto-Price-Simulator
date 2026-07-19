@@ -33,14 +33,18 @@ public class SimulationService {
 	}
 
 	public List<CoinResponseDto> getCoins() {
-		return lastCoins;
+		synchronized (this) {
+			return lastCoins;
+		}
 	}
 
 	public SimulationStatsResponseDto getStats() {
-		if (lastStats == null) {
-			throw new NoSimulationYetException();
+		synchronized (this) {
+			if (lastStats == null) {
+				throw new NoSimulationYetException();
+			}
+			return lastStats;
 		}
-		return lastStats;
 	}
 
 	public SimulationStatsResponseDto simulate(int updates, int workers, Long seed) {
@@ -52,8 +56,10 @@ public class SimulationService {
 			SimulationReport report = simulationEngine.runFullSimulation(updates, workers, seed);
 			SimulationStatsResponseDto stats = SimulationStatsResponseDto.from(report);
 
-			lastCoins = toCoinResponses(report.safeCoinSnapshots());
-			lastStats = stats;
+			synchronized (this) {
+				lastCoins = toCoinResponses(report.safeCoinSnapshots());
+				lastStats = stats;
+			}
 
 			logSummary(stats);
 			return stats;
