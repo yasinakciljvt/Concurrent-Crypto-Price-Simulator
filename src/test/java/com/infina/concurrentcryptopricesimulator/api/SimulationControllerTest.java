@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * /simulate, /coins ve /stats endpoint'lerinin integration testleri.
  *
- * <p>lastStats controller uzerinde tutulan bir durum oldugu icin "henuz simulasyon yok" senaryosu
- * @Order(1) ile once calistirilir; sonraki testler simulasyon calistirdiginda o durum kaybolur.
+ * <p>Simülasyon sonuçları {@code SimulationService} üzerinde tutulduğu için testler arası durum paylaşımı olabilir.
+ * Bu yüzden her testten önce context {@code @DirtiesContext(BEFORE_EACH_TEST_METHOD)} ile temizlenir.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
