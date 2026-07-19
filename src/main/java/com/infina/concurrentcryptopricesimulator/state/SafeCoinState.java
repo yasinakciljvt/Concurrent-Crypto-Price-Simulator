@@ -75,7 +75,7 @@ public final class SafeCoinState implements CoinState {
 
     private static String requireValidId(String id) {
         if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("Coin kimliği boş olamaz.");
+            throw new IllegalArgumentException("Coin id must not be blank");
         }
 
         return id;
