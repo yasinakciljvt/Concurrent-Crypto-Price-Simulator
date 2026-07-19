@@ -39,10 +39,12 @@ public class SimulationService {
 	}
 
 	public SimulationStatsResponseDto getStats() {
-		if (lastStats == null) {
-			throw new NoSimulationYetException();
+		synchronized (this) {
+			if (lastStats == null) {
+				throw new NoSimulationYetException();
+			}
+			return lastStats;
 		}
-		return lastStats;
 	}
 
 	public SimulationStatsResponseDto simulate(int updates, int workers, Long seed) {
