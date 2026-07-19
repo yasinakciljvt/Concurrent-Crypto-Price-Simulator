@@ -33,7 +33,9 @@ public class SimulationService {
 	}
 
 	public List<CoinResponseDto> getCoins() {
-		return lastCoins;
+		synchronized (this) {
+			return lastCoins;
+		}
 	}
 
 	public SimulationStatsResponseDto getStats() {
