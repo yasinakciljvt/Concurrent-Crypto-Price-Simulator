@@ -128,7 +128,6 @@ public class SimulationEngine {
             }
             workerEngine.shutdownGracefully();
         }
-        return elapsedMs;
     }
 
     private List<CoinComparison> buildCoinComparisons(List<CoinSnapshot> expectedSnapshots,
