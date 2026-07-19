@@ -22,7 +22,7 @@ public final class WorkerEngine {
 
     public WorkerEngine(int workerCount, Duration terminationTimeout) {
         if (workerCount < 1) {
-            throw new IllegalArgumentException("workerCount must be >= 1");
+            throw new IllegalArgumentException("workerCount en az 1 olmalıdır.");
         }
         this.workerCount = workerCount;
         this.terminationTimeout = terminationTimeout;
@@ -51,10 +51,10 @@ public final class WorkerEngine {
             CountDownLatch completionLatch,
             Duration timeout
     ) throws InterruptedException {
-        Objects.requireNonNull(completionLatch, "completionLatch must not be null");
-        Objects.requireNonNull(timeout, "timeout must not be null");
+        Objects.requireNonNull(completionLatch, "completionLatch null olamaz.");
+        Objects.requireNonNull(timeout, "timeout null olamaz.");
         if (timeout.isNegative()) {
-            throw new IllegalArgumentException("timeout must not be negative");
+            throw new IllegalArgumentException("timeout negatif olamaz.");
         }
 
         return completionLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);

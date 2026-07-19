@@ -8,6 +8,7 @@ import com.infina.concurrentcryptopricesimulator.engine.TaskFeeder;
 import com.infina.concurrentcryptopricesimulator.engine.TaskProducer;
 import com.infina.concurrentcryptopricesimulator.engine.TaskQueue;
 import com.infina.concurrentcryptopricesimulator.engine.WorkerEngine;
+import com.infina.concurrentcryptopricesimulator.exception.SimulationTimeoutException;
 import com.infina.concurrentcryptopricesimulator.model.CoinSnapshot;
 import com.infina.concurrentcryptopricesimulator.model.PriceUpdateTask;
 import com.infina.concurrentcryptopricesimulator.repository.DefaultCoinRepositories;
@@ -102,22 +103,30 @@ public class SimulationEngine {
         WorkerEngine workerEngine = new WorkerEngine(workers);
 
         long start = System.currentTimeMillis();
-        workerEngine.startWorkers(queue, completionLatch, processor);
-        Thread feederThread = new TaskFeeder(queue, tasks, workers).start();
+        Thread feederThread = null;
 
-        boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
-        long elapsedMs = System.currentTimeMillis() - start;
+        try {
+            workerEngine.startWorkers(queue, completionLatch, processor);
+            feederThread = new TaskFeeder(queue, tasks, workers).start();
 
-        if (!completed) {
-            feederThread.interrupt();
+            boolean completed = workerEngine.awaitCompletion(completionLatch, WORKER_TIMEOUT);
+            long elapsedMs = System.currentTimeMillis() - start;
+
+            if (!completed) {
+                feederThread.interrupt();
+            }
+            feederThread.join(FEEDER_JOIN_TIMEOUT.toMillis());
+
+            if (!completed) {
+                throw new SimulationTimeoutException(workers, WORKER_TIMEOUT);
+            }
+            return elapsedMs;
+        } finally {
+            if (feederThread != null && feederThread.isAlive()) {
+                feederThread.interrupt();
+            }
+            workerEngine.shutdownGracefully();
         }
-        feederThread.join(FEEDER_JOIN_TIMEOUT.toMillis());
-        workerEngine.shutdownGracefully();
-
-        if (!completed) {
-            throw new SimulationTimeoutException(workers, WORKER_TIMEOUT);
-        }
-        return elapsedMs;
     }
 
     private List<CoinComparison> buildCoinComparisons(List<CoinSnapshot> expectedSnapshots,
