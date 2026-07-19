@@ -6,29 +6,28 @@ Bu proje, bellek içinde (in-memory) çalışan eşzamanlı bir kripto fiyat sim
 
 ## Kullanılan Teknolojiler
 
-Java 21, Spring Boot 4.1.0, Maven, Git/GitHub, Swagger/OpenAPI (springdoc-openapi-ui 2.x), JUnit 5.
+Java 21, Spring Boot 4.1.0, Maven, Git/GitHub, Swagger/OpenAPI (springdoc-openapi 3.x), JUnit 5, Docker.
 
 ## Uygulamayı Çalıştırma
 
-### Docker ile Çalıştırma (Dockerize Metodu)
+### Yöntem 1: Maven ile
 
-1. Projeyi indirin:
-   ```bash
-   git clone https://github.com/yasinakciljvt/Concurrent-Crypto-Price-Simulator.git
-   ```
-2. Proje klasörüne girin:
-   ```bash
-   cd Concurrent-Crypto-Price-Simulator
-   ```
-3. Docker image'ını oluşturun:
-   ```bash
-   docker build -t concurrent-crypto-simulator .
-   ```
-4. Uygulamayı Docker container'ı içinde başlatın:
-   ```bash
-   docker run --rm -p 8080:8080 concurrent-crypto-simulator
-   ```
-5. Uygulama başladıktan sonra Swagger arayüzüne erişmek için tarayıcınızda `http://localhost:8080/swagger-ui/index.html` adresini açabilirsiniz.
+```bash
+git clone https://github.com/yasinakciljvt/Concurrent-Crypto-Price-Simulator.git
+cd Concurrent-Crypto-Price-Simulator
+./mvnw spring-boot:run
+```
+
+Uygulama `http://localhost:8080` üzerinde ayağa kalkar.
+
+### Yöntem 2: Docker ile
+
+```bash
+git clone https://github.com/yasinakciljvt/Concurrent-Crypto-Price-Simulator.git
+cd Concurrent-Crypto-Price-Simulator
+docker build -t concurrent-crypto-simulator .
+docker run --rm -p 8080:8080 concurrent-crypto-simulator
+```
 
 > Gerekli: [Docker](https://www.docker.com/products/docker-desktop/) sisteminizde kurulu olmalıdır.
 
@@ -42,40 +41,25 @@ Java 21, Spring Boot 4.1.0, Maven, Git/GitHub, Swagger/OpenAPI (springdoc-openap
 
 | Endpoint | Ne yapar? |
 |---|---|
-| `POST /simulate?updates=10000&workers=4&seed=42` | Coin durumlarını sıfırlar, seed ile immutable görev listesini üretir, beklenen sonucu tek thread'de hesaplar, ardından **aynı listeyle** önce güvensiz sonra güvenli simülasyonu çalıştırır. Görevler `BlockingQueue` üzerinden sabit worker havuzuna dağıtılır; bütün görevler bitmeden cevap dönmez, havuz graceful şekilde kapatılır. `updates` 1–100.000, `workers` 1–16, `seed` opsiyoneldir (verilmezse üretilir ve cevapta döner). |geçersiz parametre · 409 zaten çalışan simülasyon · 503 zaman aşımı |
-| `GET /coins` | Son **tamamlanan** simülasyondaki güvenli coin durumları: `initialPrice`, `currentPrice`, `updateCount`, `lastDelta`, `lastUpdatedBy`. Henüz simülasyon çalışmadıysa başlangıç değerleri döner. | 
-| `GET /stats` | Son tamamlanan simülasyonun sonucu: kullanılan seed, gönderilen görev sayısı, worker sayısı, güvenli/güvensiz işlenen görev sayıları, süreler, throughput değerleri, invariant sonucu ve her coin için başlangıç/beklenen/güvensiz/güvenli fiyat ile güncelleme sayıları. | 
-
+| `POST /simulate?updates=10000&workers=4&seed=42` | Coin durumlarını sıfırlar, seed ile immutable görev listesini üretir, beklenen sonucu tek thread'de hesaplar, ardından **aynı listeyle** önce güvensiz sonra güvenli simülasyonu çalıştırır. Görevler `BlockingQueue` üzerinden sabit worker havuzuna dağıtılır; bütün görevler bitmeden cevap dönmez, havuz graceful şekilde kapatılır. `updates` 1–100.000, `workers` 1–16, `seed` opsiyoneldir (verilmezse üretilir ve cevapta döner). **Hata cevapları:** 400 geçersiz parametre · 409 zaten çalışan simülasyon · 503 zaman aşımı. |
+| `GET /coins` | Son **tamamlanan** simülasyondaki güvenli coin durumları: `initialPrice`, `currentPrice`, `updateCount`, `lastDelta`, `lastUpdatedBy`. Henüz simülasyon çalışmadıysa başlangıç değerleri döner. |
+| `GET /stats` | Son tamamlanan simülasyonun sonucu: kullanılan seed, gönderilen görev sayısı, worker sayısı, güvenli/güvensiz işlenen görev sayıları, süreler, throughput değerleri, invariant sonucu ve her coin için başlangıç/beklenen/güvensiz/güvenli fiyat ile güncelleme sayıları. 404: henüz simülasyon yok. |
 
 ## Mimari Akış
 
+```
+HTTP → SimulationController → SimulationService → SimulationEngine
+                                                        │
+        TaskProducer ──► TaskQueue ──► Worker Pool (N) ──► Coin State + Sayaçlar
+                        (BlockingQueue)   worker-1..N
+```
 
-HTTP → SimulationController → SimulationService → SimulationEngine ↓
-              
-TaskProducer ──► TaskQueue ──► Worker Pool (N) ──► Coin State + Sayaçlar
-                (BlockingQueue)   worker-1..N
+`SimulationController` yalnızca HTTP sözleşmesinden sorumludur: routing, `@Min`/`@Max` ile parametre doğrulama ve Swagger dokümantasyonu; iş mantığı içermez. `SimulationService` uygulama durumunu yönetir; `AtomicBoolean` ile aynı anda tek simülasyon çalışmasını garanti eder, tamamlanan koşunun sonucunu `volatile` alanlarda saklayıp `/coins` ve `/stats` isteklerine sunar, DTO dönüşümünü ve özet loglamayı yapar. Böylece eşzamanlılık mantığı web katmanından tamamen yalıtılmıştır.
 
-`SimulationController` yalnızca HTTP sözleşmesinden sorumludur: routing, `@Min`/`@Max` ile parametre
-doğrulama ve Swagger dokümantasyonu; iş mantığı içermez. `SimulationService` uygulama durumunu yönetir;
-`AtomicBoolean` ile aynı anda tek simülasyon çalışmasını garanti eder, tamamlanan koşunun sonucunu
-`volatile` alanlarda saklayıp `/coins` ve `/stats` isteklerine sunar, DTO dönüşümünü ve özet loglamayı
-yapar. Böylece eşzamanlılık mantığı web katmanından tamamen yalıtılmıştır.
-
-`TaskProducer` belirtilen seed ile immutable fiyat değişim görevlerini bir kez üretir; `TaskFeeder` bunları sınırlı bir `LinkedBlockingQueue`'ya akıtır. `WorkerEngine` havuzundaki worker'lar (`PriceWorker`) görevleri kuyruktan çekip coin fiyatlarını günceller. `SimulationEngine` tüm akışı koordine eder; `SafeCounter`/`UnsafeCounter` ile yarış durumunu ölçer, `InvariantChecker` ile simülasyon sonu tutarlılığı doğrular.
-
-
-`WorkerThreadFactory` thread'leri `worker-N` diye adlandırır; `PriceWorker` kuyruktan görev alıp işler, poison pill görünce çıkar. `WorkerEngine` sabit havuzu, `CountDownLatch` ile tamamlanmayı ve `shutdown`/`awaitTermination` ile graceful kapanışı yönetir.
+`TaskProducer` belirtilen seed ile immutable fiyat değişim görevlerini bir kez üretir; `TaskFeeder` bunları sınırlı bir `LinkedBlockingQueue`'ya akıtır. `WorkerEngine` havuzundaki worker'lar (`PriceWorker`) görevleri kuyruktan çekip coin fiyatlarını günceller. `SimulationEngine` tüm akışı koordine eder; `SafeCounter`/`UnsafeCounter` ile yarış durumunu ölçer, `InvariantChecker` ile simülasyon sonu tutarlılığı doğrular. `WorkerThreadFactory` thread'leri `worker-N` diye adlandırır; `PriceWorker` kuyruktan görev alıp işler, poison pill görünce çıkar.
 
 ## ⭐ Tasarım Kararları
 
-
-> Yönergedeki 9 karar noktasının her biri için aracınızı ve **kısa "neden"ini** yazın.
-
-
-`TaskProducer` belirtilen seed ile immutable fiyat değişim görevlerini bir kez üretir; `TaskFeeder` bunları sınırlı bir `LinkedBlockingQueue`'ya akıtır. `WorkerEngine` havuzundaki worker'lar (`PriceWorker`) görevleri kuyruktan çekip coin fiyatlarını günceller. `SimulationEngine` tüm akışı koordine eder; `SafeCounter`/`UnsafeCounter` ile yarış durumunu ölçer, `InvariantChecker` ile simülasyon sonu tutarlılığı doğrular.
-`SimulationController` yalnızca HTTP sözleşmesini taşır: routing, `@Min`/`@Max` ile parametre doğrulama ve Swagger dokümantasyonu; iş mantığı içermez. `SimulationService` uygulama durumunu yönetir; `AtomicBoolean.compareAndSet` ile aynı anda tek simülasyon çalışmasını garanti eder — kontrol ve yazma tek atomik adımda olduğu için iki isteğin arasına girip ikisinin de geçmesi mümkün değildir — ve bayrağı `finally` bloğunda serbest bırakarak hata durumunda sistemin kilitli kalmasını önler. Tamamlanan koşunun sonucu `volatile` alanlarda (`lastStats`, `lastCoins`) immutable snapshot olarak saklanır; okuyucular hiç kilitlenmeden ya önceki tamamlanmış sonucu ya da yeni sonucu görür, yarım state göremez. `GlobalExceptionHandler` bütün hataları tek tip `ErrorResponseDto` gövdesine çevirir: geçersiz parametre 400, çalışan simülasyon 409, henüz sonuç yokken `/stats` 404, zaman aşımı 503. Bu ayrım sayesinde thread pool ve kuyruk mantığı web katmanından tamamen yalıtılır; `SimulationEngine` Spring'e ve HTTP'ye bağımlı olmadan test edilebilir.
-
-## ⭐ Tasarım Kararları
 | Karar noktası | Kararımız | Neden? (+alternatif karşılaştırması) |
 |---|---|---|
 | Görev kuyruğu | Sınırlı `LinkedBlockingQueue` (kapasite 10.000) | Ayrı put/take kilitleri → 1 producer + N consumer'da çekişme az (`ArrayBlockingQueue` tek kilit kullanır). Sınırlı kapasite backpressure sağlar, 100.000 görevde bellek patlamaz. |
@@ -92,22 +76,25 @@ yapar. Böylece eşzamanlılık mantığı web katmanından tamamen yalıtılmı
 | Hata cevapları | `GlobalExceptionHandler` + tek tip `ErrorResponseDto` | Tüm hatalar aynı gövde şeklinde döner: 400 geçersiz parametre, 409 çalışan simülasyon, 404 henüz sonuç yok, 503 zaman aşımı. Her endpoint'te `try/catch` yazmak yerine tek noktada toplanır. |
 | Simülasyon öncesi cevaplar | `/coins` 200 (başlangıç değerleri), `/stats` 404 | Coin'ler uygulama açılışında tanımlıdır, başlangıç fiyatları anlamlı bir durumdur; istatistik ise ancak koşu sonucunda üretilir. `/stats` için 200 + boş gövde istemciyi her cevapta "dolu mu boş mu" kontrolüne zorlardı. |
 
-
-
 ## Race Condition Gözlemi
+
 İki race noktası gösterildi: (1) işlenen görev sayacı `count++` (oku-artır-yaz üç adımdır, iki thread aynı değeri okursa bir artırım kaybolur); (2) coin state'te birden fazla alanın tutarsız güncellenmesi.
 
 Gerçek çıktı (50.000 updates, 8 worker):
+
+```
 Sayaç beklenen: 50.000 | güvenli: 50.000 ✓ | güvensiz: 49.980 ✗
-BTC beklenen: 54.885 | güvenli: 54.885 ✓ | güvensiz: 54.833 ✗
-ETH beklenen: 638 | güvenli: 638 ✓ | güvensiz: 617 ✗
-SOL beklenen: -139 | güvenli: -139 ✓ | güvensiz: -137 ✗
+BTC   beklenen: 54.885 | güvenli: 54.885 ✓ | güvensiz: 54.833 ✗
+ETH   beklenen:    638 | güvenli:    638 ✓ | güvensiz:    617 ✗
+SOL   beklenen:   -139 | güvenli:   -139 ✓ | güvensiz:   -137 ✗
+```
 
 > **Gözlem:** 50.000 updates + 8 worker ile yapılan **20 çalıştırmanın 20'sinde** güvensiz sonuç bozuldu (sayaç veya en az bir coin beklenenden saptı). Worker ve görev sayısı arttıkça lost-update olasılığı arttı; düşük worker sayısında (1 worker) çekişme olmadığı için güvensiz sonuç zaman zaman doğru da çıkabiliyor. Güvenli sürüm her çalıştırmada invariant'ı sağladı.
 
 ## Güvenli Çözüm
 
 Coin durumunu korumak için `ReentrantLock` kullanıldı. Tek başına `AtomicLong` yalnızca tek bir değişkeni (örn. sadece fiyatı) korur; ancak coin durumunda fiyat, güncelleme sayısı, son delta ve son güncelleyen thread aynı anda ve atomik bir bütün (compound action) olarak güncellenmelidir. Bu yüzden dört alan tek bir kritik bölümde kilitlenir.
+
 ```java
 lock.lock();
 try {
@@ -118,16 +105,20 @@ try {
 } finally {
     lock.unlock();
 }
+```
 
 ## Invariant ve Doğruluk Kanıtı
 
-'''
+```
 safePrice       == initialPrice + sum(all deltas)    ->  BAŞARILI (Geçti)
 safeUpdateCount == o coin için üretilen görev sayısı ->  BAŞARILI (Geçti)
 ```
-SimulationEngine, güvenli koşu bittiğinde her coin için bu iki invariant'ı ve safeCounter == submittedUpdates eşitliğini InvariantChecker ile denetler; safeInvariantPassed alanı sonuçta döner.
+
+`SimulationEngine`, güvenli koşu bittiğinde her coin için bu iki invariant'ı ve `safeCounter == submittedUpdates` eşitliğini `InvariantChecker` ile denetler; `safeInvariantPassed` alanı sonuçta döner.
 
 ## Performans Sonuçları
+
+50.000 updates, seed=42 (güvenli koşu; yerel ölçüm — makineye göre değişir):
 
 | Updates | Workers | Süre | Throughput | Invariant |
 |---:|---:|---:|---:|---|
@@ -136,30 +127,31 @@ SimulationEngine, güvenli koşu bittiğinde her coin için bu iki invariant'ı 
 | 50.000 | 4 | 14 ms | 3.571.428 görev/sn | Başarılı |
 | 50.000 | 8 | 14 ms | 3.571.428 görev/sn | Başarılı |
 
-<Yorum: Worker sayısı arttıkça süre kısalmış ve throughput (saniyede işlenen görev sayısı) artmıştır. Ancak worker sayısı işlemci çekirdek sınırına ulaştığında kilit çekişmesi (lock contention) ve thread'ler arası geçiş maliyeti (context switch) arttığı için performans kazancı bir noktadan sonra durmuş, hatta süre hafifçe uzamıştır.>
+> **Yorum:** Bu iş yükünde görevler çok kısa olduğu için worker sayısını artırmak belirgin bir hızlanma sağlamadı; kilit çekişmesi (lock contention) ve thread'ler arası geçiş (context switch) maliyeti, paralellik kazancını dengeledi. Bu, "daha fazla worker her zaman daha hızlı değildir" ilkesini gösterir. (Ölçümler makineye ve o anki yüke göre değişir.)
 
 ## ReentrantLock ve synchronized Karşılaştırması
 
-<Nerede hangisini kullandınız? ReentrantLock'un sağladığı ekstralar (tryLock, adalet, kesintiye
-uğrayabilir kilitleme) sizin için gerekli miydi? Global lock vs coin başına lock farkı.>
+Coin state güvenliği için `ReentrantLock` (`SafeCoinState`), sayaç için `AtomicLong` (`SafeCounter`) kullanıldı. `ReentrantLock`; `synchronized`'a göre `tryLock` (bloklamadan kilit deneme), adalet (fairness) ve kesintiye uğrayabilir kilitleme gibi ekstralar sunar. Bu projede bu ekstralara zorunlu ihtiyaç olmadı; ancak `ReentrantLock`, kilidin `try/finally` ile açıkça yönetilmesini sağladığı ve coin başına kilitleme stratejisini okunur kıldığı için tercih edildi. `synchronized` da aynı doğruluğu verirdi fakat kilit edinimi metoda/bloğa gömülü kalır, esnekliği daha azdır.
+
+**Global lock vs coin başına lock:** Kilit kapsamı coin başına tutuldu — her coin kendi lock'una sahip olduğundan BTC güncellenirken ETH ve SOL beklemez. Tek bir global lock da doğru sonuç verirdi ama tüm coin güncellemelerini sıraya sokarak gereksiz çekişme (contention) yaratır, çok worker'da performansı düşürürdü. Thread dump'ta da coin başına lock ile aynı anda çok sayıda `BLOCKED` thread görülmez.
 
 ## Thread Dump İncelemesi
 
-Simülasyon sırasında IntelliJ "Capture Thread Dump" / `jstack` / `jcmd` ile alınır.
-`WorkerThreadFactory` sayesinde havuz thread'leri `worker-1` … `worker-N` olarak görünür.
+Simülasyon sırasında IntelliJ "Capture Thread Dump" / `jstack` / `jcmd` ile alınır. `WorkerThreadFactory` sayesinde havuz thread'leri `worker-1` … `worker-N` olarak görünür.
 
 ```
 "worker-1" ... RUNNABLE ...
 "worker-2" ... WAITING (parking) ... at java.util.concurrent.LinkedBlockingQueue.take(...)
 "worker-3" ... WAITING (parking) ... at java.util.concurrent.LinkedBlockingQueue.take(...)
 "worker-4" ... RUNNABLE ...
+"task-producer" ... RUNNABLE / TIMED_WAITING ...
 ```
 
 > Not: Yukarıdaki kesit tipik gözlemdir; gerçek dump çıktınızı buraya yapıştırabilirsiniz.
 
-- **Kaç worker var?** Havuz boyutu workers parametresiyle (örneğin 4) tam uyumludur. Sistemde kontrolsüz thread oluşturulup bellek tüketilmemiş, sabit havuz korunmuştur.
-- **Hangi state'teler?** Kuyrukta görev kalmadığında worker thread'leri `BlockingQueue.take()` metodunda `WAITING (parking)` durumuna geçerek CPU tüketmeden yeni görevin gelmesini beklemektedir.
-- **Lock çekişmesi/deadlock var mı?** Coin'ler bağımsız kilitlendiği ve döngüsel bir kilit sırası (circular wait) oluşmadığı için herhangi bir deadlock (`BLOCKED`) durumu tespit edilmemiştir.
+- **Kaç worker var?** Havuz boyutu `workers` parametresiyle (örneğin 4) tam uyumludur. Sistemde kontrolsüz thread oluşturulup bellek tüketilmemiş, sabit havuz korunmuştur; 10.000 thread YOKtur.
+- **Hangi state'teler?** Kuyrukta görev kalmadığında worker thread'leri `LinkedBlockingQueue.take()` metodunda `WAITING (parking)` durumuna geçerek CPU tüketmeden yeni görevin gelmesini bekler — kuyruğun gerçekten kullanıldığının kanıtıdır.
+- **Lock çekişmesi/deadlock var mı?** Coin'ler bağımsız kilitlendiği ve döngüsel bir kilit sırası (circular wait) oluşmadığı için herhangi bir deadlock (`Found one Java-level deadlock`) durumu tespit edilmemiştir.
 
 ## Merge Conflict Deneyimi
 
@@ -171,31 +163,25 @@ Simülasyon sırasında IntelliJ "Capture Thread Dump" / `jstack` / `jcmd` ile a
 - **Çözüm commit / PR linki:** `3d1f5c3` — "Resolve timing conflict: nano precision on processing window"; [PR #25](https://github.com/yasinakciljvt/Concurrent-Crypto-Price-Simulator/pull/25)
 - **Ne öğrendik:** Aynı koda iki farklı iyileştirme geldiğinde Git otomatik seçim yapamıyor ve naif "birini seç" çözümü kodu bozabiliyor (biri derleme hatası, diğeri sessiz mantık hatası). Doğru çözüm iki niyeti anlayıp birleştirmekti. Ayrıca conflict çözümünden sonra `mvn test` çalıştırmanın kritik olduğunu gördük — çünkü `startNanos`/`elapsedNanos` tutarsızlığı ancak derleme/test aşamasında yakalanıyordu.
 
-
 ## Testler
 
-`./mvnw test` ile çalıştırılır.
+`./mvnw test` ile çalıştırılır — 82 test.
 
+- `TaskProducerTest` — seed tekrarlanabilirliği, immutability, parametre sınırı
+- `TaskQueueTest`, `TaskFeederTest` — kuyruk, backpressure, poison pill, interrupt davranışı
 - `WorkerThreadFactoryTest` — thread adları `worker-N`
 - `PriceWorkerTest` — kuyruk tüketimi + poison pill ile durma
 - `WorkerEngineTest` — sabit havuz ile görev işleme
 - `WorkerCompletionTest` — `CountDownLatch` ile tamamlanma
 - `WorkerShutdownTest` — graceful shutdown / `awaitTermination`
-- `WorkerThreadFactoryTest` — thread adları `worker-N`
-- `PriceWorkerTest` — kuyruk tüketimi + poison pill ile durma
-- `WorkerEngineTest` — sabit havuz ile görev işleme
-- `TaskProducerTest` — seed tekrarlanabilirliği, immutability, parametre sınırı
-- `TaskQueueTest`, `TaskFeederTest` — kuyruk, backpressure, poison pill, interrupt
 - `ExpectedResultCalculatorTest` — beklenen fiyat hesabı
 - `CounterTest` — güvenli/güvensiz sayaç
-- `CoinStateTest`, `SafeCoinStateTest`, `CoinInvariantTest` — coin state + invariant
+- `CoinStateTest`, `SafeCoinStateTest`, `CoinInvariantTest` — coin state güncelleme, doğru lock ile race önleme, invariant
 - `InvariantCheckerTest`, `StatsTest`, `SimulationEngineTest` — motor ve doğrulama
 - `InMemoryCoinRepositoryTest` — coin deposu
-- `SimulationControllerTest` — endpoint sözleşmesi: 404/400 senaryoları, simülasyon sonrası `/stats` ve `/coins`, seed tekrarlanabilirliği
+- `SimulationControllerTest` — endpoint sözleşmesi: 404/400 senaryoları, simülasyon sonrası `/stats` ve `/coins`
 - `SimulationControllerIntegrationTest` — uçtan uca akış: simülasyon çalıştırma ve üç endpoint'in tutarlılığı
-- Coin invariant testi
-- `CoinStateTest` ve `SafeCoinStateTest` — coin durumlarının (güvenli/güvensiz) güncellenmesi, doğru lock ile race condition'ın önlenmesi test edilir.
-- `CoinInvariantTest` — her coin için tutarlılık (invariant) koşullarının simülasyon sonunda geçip geçmediği kontrol edilir.
+- `VirtualThreadComparisonTest` — (Bonus) sabit havuz vs virtual-thread-per-task karşılaştırması
 
 ## Grup Üyeleri ve Katkıları
 
@@ -203,10 +189,14 @@ Simülasyon sırasında IntelliJ "Capture Thread Dump" / `jstack` / `jcmd` ile a
 |---|---|---|---|---|
 | Ahmed Şamil Karadeniz | Simulation core modülü, sayaçlar ve invariant kontrolü: race condition analizi, güvenli/güvensiz sayaç testi, invariant doğrulama birimleri | `feature/simulation-core` | PR #6 | PR #10, #11 |
 | Emirhan Kaya | Worker Engine: `PriceWorker`, `WorkerThreadFactory` (`worker-N`), `WorkerEngine` (fixed pool, completion/shutdown), ilgili unit testler | `feature/worker-engine` | PR #3, #8, #10, #12, #13 | PR #6 |
-| Yasin Akçil | Task Pipeline: `PriceUpdateTask` (immutable record), `TaskProducer` (seed'li deterministik üretim), `TaskQueue` (sınırlı `LinkedBlockingQueue` + poison pill), `TaskFeeder` (producer thread'i), interrupt'ta güvenli pill gönderimi (`offerPoisonPills`), ilgili unit ve pipeline integration testleri | `feature/task-pipeline` | PR #7 | PR #8, #16 |
-| Melis Kara | API Modülü: `SimulationController` (`/simulate`, `/coins`, `/stats`), DTO'lar ve `from()` eşlemeleri, `GlobalExceptionHandler` (400/404/409), `@Min`/`@Max` validation, `AtomicBoolean` ile 409 kontrolü, Swagger dokümantasyonu; simülasyon iş akışının `SimulationEngine`'e taşınması ve durum yönetiminin `SimulationService`'e ayrıştırılması, controller ve integration testleri | `feature/api` | PR #2, #11, #16, #18 | PR #4, #15 |
-| Ufuk Güneş | Coin & State Uygulaması, `CoinState` sınıfının tasarımı ve thread-safe implementasyonu, coin başına lock stratejisi, ilgili unit/integration testleri, feature branch süreci, review katkıları | `feature/coin-state` | PR #20, #4 | PR #7 |
+| Yasin Akçil | Task Pipeline: `PriceUpdateTask` (immutable record), `TaskProducer` (seed'li deterministik üretim), `TaskQueue` (sınırlı `LinkedBlockingQueue` + poison pill), `TaskFeeder` (producer thread'i), interrupt'ta güvenli pill gönderimi (`offerPoisonPills`), ilgili unit ve pipeline integration testleri; Bonus A (Virtual Threads karşılaştırması) | `feature/task-pipeline` | PR #7 | PR #8, #16 |
+| Melis Kara | API Modülü: `SimulationController` (`/simulate`, `/coins`, `/stats`), DTO'lar ve `from()` eşlemeleri, `GlobalExceptionHandler` (400/404/409/503), `@Min`/`@Max` validation, `AtomicBoolean` ile 409 kontrolü, Swagger dokümantasyonu; simülasyon iş akışının `SimulationEngine`'e taşınması ve durum yönetiminin `SimulationService`'e ayrıştırılması, controller ve integration testleri | `feature/api` | PR #2, #11, #16, #18 | PR #4, #15 |
+| Ufuk Güneş | Coin & State: `CoinState` tasarımı ve thread-safe implementasyonu, coin başına lock stratejisi, ilgili unit/integration testleri; Dockerize (`Dockerfile`, `.dockerignore`) | `feature/coin-state` | PR #20, #4 | PR #7 |
 
 ## Bonus Çalışmalar
 
-`VirtualThreadComparisonTest` ile aynı 50.000 görev, 8 thread'li sabit havuzda ve Java 21 virtual-thread-per-task executor ile çalıştırılarak süreleri karşılaştırıldı ve iki yöntemin de bütün görevleri işlediği doğrulandı. Proje ayrıca multi-stage `Dockerfile` ve `.dockerignore` kullanılarak Dockerize edildi.
+**Bonus A — Java 21 Virtual Threads karşılaştırması.** `VirtualThreadComparisonTest` ile aynı 50.000 görev, hem `newFixedThreadPool(8)` hem de `newVirtualThreadPerTaskExecutor()` ile işlendi (ikisi de thread-safe `SafeCoinState` + `SafeCounter` ile, sonuçlar doğru). **Sonuç:** sabit havuz her çalıştırmada daha hızlı çıktı; virtual thread'ler bu iş yükünde ~1.6–1.8x daha yavaş oldu. Sebep: görevler çok kısa ve tamamen CPU-ağırlıklı (`applyDelta` + `increment`), hiç bloklayan I/O yok. Virtual thread'lerin asıl kazanımı thread'in bloklanıp beklediği (I/O, ağ) iş yüklerindedir; kısa CPU-bound görevlerde ise görev başına virtual thread oluşturma/zamanlama maliyeti öne çıkar. Bu sonuç "daha yeni her zaman daha hızlı değildir" ilkesini somut gösterir.
+
+Ayrıca uygulama multi-stage `Dockerfile` + `.dockerignore` ile Dockerize edildi (21-jdk ile derle → 21-jre ile çalıştır).
+
+_Bonus B (CompletableFuture) ve Bonus C (deadlock) yapılmadı._
